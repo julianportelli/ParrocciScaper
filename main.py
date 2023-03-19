@@ -1,29 +1,44 @@
 from bs4 import BeautifulSoup
 import pandas as pd
 import requests
+import datetime as dt
+import os, datetime as dt
+from pathlib import Path
+import pandas as pd
 
 # Setting up
 
 # A district has many localities
 # A locality has many parrocci
 # There is a kappillan for each parrocca
+# Each parrocca has many Knisja
+distrettCol = "Distrett"
+lokalitaCol = "Lokalità"
+parroccaCol = "Parroċċa"
+knisjaNameCol = "Knisja"
+tipTaKnisjaCol = "Tip ta' Knisja"
+kappillanNameCol = "Kappillan"
+personInChargeNameCol = "Person In charge"
+personInChargeNruCol = "Nru"
+personInChargeEmailCol = "E-mail"
+
 df = pd.DataFrame(columns=[
-    "Distrett",
-    "Lokalità",
-    "Parroċċa",
-    "Knisja",
-    "Tip ta' Knisja"
-    "Kappillan",
-    "Person In charge",
-    "Nru",
-    "E-mail"
+    distrettCol,
+    lokalitaCol,
+    parroccaCol,
+    knisjaNameCol,
+    tipTaKnisjaCol,
+    kappillanNameCol,
+    personInChargeNameCol,
+    personInChargeNruCol,
+    personInChargeEmailCol
 ])
 
 knisjaParrokjali = 'Knisja Parrokkjali'
 kappelliTalAdorazzjoni = 'Kappelli tal-Adorazzjoni'
-knessjesUKappelliOhra = 'Knejjes u Kappelli Oħra'
+knejjesUKappelliOhra = 'Knejjes u Kappelli Oħra'
 
-churchTypes = [knisjaParrokjali, kappelliTalAdorazzjoni,knessjesUKappelliOhra]
+churchTypes = [knisjaParrokjali, kappelliTalAdorazzjoni, knejjesUKappelliOhra]
 
 def getSiteBeautifulSoup(url):
     html_result = requests.get(url).text
@@ -48,18 +63,114 @@ for localityElem in localityElems: # type: ResultSet
     df_locality = localityLink.string # Unique, E.g. Ħ’Attard
 
     # Get website of parrocca contents to get information
-    parroccaDoc = getSiteBeautifulSoup(localityLink['href'])
+    parroccaDoc = getSiteBeautifulSoup(localityLink['href'].strip())
 
     parroccaDocTopSection = parroccaDoc.find('article').find(class_="entry-content-post")
-    parroccaName = parroccaDocTopSection.find(class_="tb-heading")
+    df_parroccaName = parroccaDocTopSection.find(class_="tb-heading").string
 
     # Remove top section to get kappillan details
     parroccaDocTopSection.find(class_="wp-block-columns").decompose()
 
     kappillanDetailsElements = parroccaDoc.find_all(class_="tb-fields-and-text")
 
-    parroccaMainKappillanName = kappillanDetailsElements[0].contents[-1].find("strong").string
-    parroccaMainKappillanNumber = kappillanDetailsElements[2].contents[-1].find("strong").string
+    df_parroccaMainKappillanName = kappillanDetailsElements[0].contents[-1].find("strong").string.strip()
+    df_parroccaMainKappillanEmail = kappillanDetailsElements[1].contents[-1].find("strong").find("a")['title'] if len(kappillanDetailsElements[1].contents) > 0 else ""
+    df_parroccaMainKappillanNumber = kappillanDetailsElements[2].contents[-1].find("strong").string.strip() if len(kappillanDetailsElements[2].contents) > 0 else ""
     
     # Knisja parrokjali
+    knisjaParrokjaliElement = parroccaDoc.find(class_="wpv-view-output") # The Knisja link is in the first wpv-view-output element
+
+    knisjaParrokjaliLink = knisjaParrokjaliElement.find(class_="wp-block-toolset-views-view-editor").find(class_="js-wpv-view-layout").find(class_="js-wpv-loop-wrapper").find(class_="wp-block-toolset-views-view-template-block").find(class_="tb-heading").find("a")
+
+    df_knisjaName = knisjaParrokjaliLink.string.strip()
+
+    # Set person in charge for Knisja parrokjali
+    df_tipTaKnijsa = knisjaParrokjali
+    df_personInChargeName = df_parroccaMainKappillanName
+    df_personInChargeNumber = df_parroccaMainKappillanNumber
+    df_personInChargeEmail = df_parroccaMainKappillanEmail
     
+    # Remove from document
+    knisjaParrokjaliElement.decompose()
+
+    # Remove next wpv-view-output as it is empty
+    parroccaDoc.find(class_="wpv-view-output").decompose()
+
+    def addRowToDataframe():
+        newRow = {
+            distrettCol: df_district,
+            lokalitaCol: df_locality,
+            parroccaCol: df_parroccaName,
+            knisjaNameCol: df_knisjaName,
+            tipTaKnisjaCol: df_tipTaKnijsa,
+            kappillanNameCol: df_parroccaMainKappillanName,
+            personInChargeNameCol: df_personInChargeName,
+            personInChargeNruCol: df_personInChargeNumber,
+            personInChargeEmailCol: df_personInChargeEmail
+        }
+        df.loc[len(df)] = newRow
+
+    # Add knisja parrokjali to dataframe
+    addRowToDataframe()
+    
+    # Kappelli tal-Adorazzjoni
+    df_tipTaKnijsa = kappelliTalAdorazzjoni
+    kappelliTalAdorazzjoniElems = parroccaDoc.find(class_="wpv-view-output").find(class_="wp-block-toolset-views-view-editor").find(class_="js-wpv-view-layout")
+    
+    if not kappelliTalAdorazzjoniElems.find_all("div", string="No items found", recursive=False):
+        kappelliTalAdorazzjoniElems = kappelliTalAdorazzjoniElems.find(class_="js-wpv-loop-wrapper").find(class_="tb-masonry").find_all(class_="tb-brick")
+
+        for kappelliTalAdorazzjoniElem in kappelliTalAdorazzjoniElems:
+            kappelliTalAdorazzjoniElemLink = kappelliTalAdorazzjoniElem.find(class_="tb-brick__content").find(class_="wp-block-toolset-views-view-template-block").find(class_="tb-heading").find("a")
+            
+            df_knisjaName = kappelliTalAdorazzjoniElemLink.string.strip()
+            # kappellaTalAdorazzjoniDoc = getSiteBeautifulSoup(kappelliTalAdorazzjoniElemLink['href'])
+            df_personInChargeName = ""
+            df_personInChargeNumber = ""
+            df_personInChargeEmail = ""
+
+            addRowToDataframe()
+
+    parroccaDoc.find(class_="wpv-view-output").decompose()
+
+    # Knejjes u Kappelli Oħra
+    df_tipTaKnijsa = knejjesUKappelliOhra
+    knejjesUKappelliOhraElems = parroccaDoc.find(class_="wpv-view-output").find(class_="wp-block-toolset-views-view-editor").find(class_="js-wpv-view-layout")
+    
+    if not knejjesUKappelliOhraElems.find_all("div", string="No items found", recursive=False):
+       knejjesUKappelliOhraElems = knejjesUKappelliOhraElems.find(class_="js-wpv-loop-wrapper").find(class_="tb-grid").find_all(class_="tb-grid-column")
+       for knejjesUKappelliOhraElem in knejjesUKappelliOhraElems:
+        knejjesUKappelliOhraElemLink = knejjesUKappelliOhraElem.find(class_="wp-block-toolset-views-view-template-block").find(class_="tb-heading").find("a")
+
+        df_knisjaName = knejjesUKappelliOhraElemLink.string.strip()
+
+        knejjesUKappelliOhraDoc = getSiteBeautifulSoup(knejjesUKappelliOhraElemLink['href'])
+
+        personInChargeSection = knejjesUKappelliOhraDoc.find("article").find(class_="entry-content-post").find(class_="tb-fields-and-text", recursive=False)
+        
+        lengthOfPersonInChargeSection = len(personInChargeSection.contents[0].contents)
+        personInChargeContents = personInChargeSection.contents[0].contents
+
+        if lengthOfPersonInChargeSection == 1:
+            df_personInChargeName = ""
+            df_personInChargeNumber = ""
+        elif lengthOfPersonInChargeSection == 3:
+            df_personInChargeName = personInChargeContents[1].string.strip()
+            df_personInChargeNumber = ""
+        elif lengthOfPersonInChargeSection == 5:
+            df_personInChargeName = personInChargeContents[1].string.strip()
+            df_personInChargeNumber = personInChargeContents[4].string.strip()
+
+        addRowToDataframe()
+
+# Dataframe to Excel
+now = dt.datetime.now()
+dateAndTimeNow = now.strftime("%d-%m-%Y_%H-%M-%S")
+
+fileName = "Parrocci_{0}.xlsx".format(dateAndTimeNow)
+outputPath = Path("Output") / fileName
+os.makedirs(os.path.dirname(outputPath), exist_ok=True)
+
+writer = pd.ExcelWriter(outputPath, engine='openpyxl')
+df.to_excel(writer, sheet_name='Parroċċi')
+writer.close()
