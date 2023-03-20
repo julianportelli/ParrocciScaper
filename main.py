@@ -40,17 +40,50 @@ knejjesUKappelliOhra = 'Knejjes u Kappelli Oħra'
 
 churchTypes = [knisjaParrokjali, kappelliTalAdorazzjoni, knejjesUKappelliOhra]
 
-def getSiteBeautifulSoup(url):
-    html_result = requests.get(url).text
-    bs = BeautifulSoup(html_result, 'html.parser')
-    return bs
+cacheParentDirectory = Path("HtmlCache")
+cacheParrocciHTMLPath = cacheParentDirectory / "parrocci.html" 
+cacheParroccaDirectory = cacheParentDirectory / "parrocca"
+cacheKnisjaDirectory = cacheParentDirectory / "knisja"
+root_site = "https://parrocci.knisja.mt/"
 
-# Extract site
-root_site = "https://parrocci.knisja.mt/parrocci/"
-doc = getSiteBeautifulSoup(root_site)
+# Create HtmlCache directories if not exists
+os.makedirs(cacheParentDirectory, exist_ok=True)
+os.makedirs(cacheParroccaDirectory, exist_ok=True)
+os.makedirs(cacheKnisjaDirectory, exist_ok=True)
+
+def getSiteBeautifulSoup(sourceHTMLfileURL: str):
+    subfolderPath = sourceHTMLfileURL[sourceHTMLfileURL.rindex(root_site)+len(root_site):len(sourceHTMLfileURL)].strip().lower()
+
+    html_result : str = None
+    htmlPath : str = None
+    soup : BeautifulSoup = None
+
+    if "parrocci" in subfolderPath: # Parrocci index page
+        htmlPath = cacheParrocciHTMLPath
+    else:
+        subfolderPath = subfolderPath[0:-1]
+        htmlPath  = cacheParentDirectory / "{0}.html".format(subfolderPath)
+
+    if os.path.exists(htmlPath):
+        # Retrieve document from local cache
+        with open(htmlPath, 'rb') as f:
+            soup = BeautifulSoup(f.read(), 'lxml')
+    else:
+        # Retrieve document from URL, and save to cache
+        response = requests.get(sourceHTMLfileURL)
+        with open(Path(htmlPath), 'wb+') as f:
+            f.write(response.content)
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+    return soup
+
+# Extract site HTML
+parrocciPage = root_site + "parrocci/"
+parrocciDoc = getSiteBeautifulSoup(parrocciPage)
 
 # Concentrate on localities
-localitiesWrapperElem = doc.find(class_="js-wpv-loop-wrapper").find(class_="tb-masonry")
+localitiesWrapperElem = parrocciDoc.find(class_="js-wpv-loop-wrapper").find(class_="tb-masonry")
 print(localitiesWrapperElem.prettify())
 
 # Get localities and loop
@@ -169,8 +202,9 @@ dateAndTimeNow = now.strftime("%d-%m-%Y_%H-%M-%S")
 
 fileName = "Parrocci_{0}.xlsx".format(dateAndTimeNow)
 outputPath = Path("Output") / fileName
+# Create 'Output' directory if it does not exist
 os.makedirs(os.path.dirname(outputPath), exist_ok=True)
-
+# Write dataframe to Excel file
 writer = pd.ExcelWriter(outputPath, engine='openpyxl')
 df.to_excel(writer, sheet_name='Parroċċi')
 writer.close()
