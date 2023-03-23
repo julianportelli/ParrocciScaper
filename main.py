@@ -6,12 +6,17 @@ import os, datetime as dt
 from pathlib import Path
 import pandas as pd
 
-# Setting up
+"""
+A district has many localities
+A locality has many parrocci
+There is a kappillan for each parrocca
+Each parrocca has many Knisja
+"""
 
-# A district has many localities
-# A locality has many parrocci
-# There is a kappillan for each parrocca
-# Each parrocca has many Knisja
+"""
+Variable set up
+"""
+#Data columns for output file
 distrettCol = "Distrett"
 lokalitaCol = "Lokalità"
 parroccaCol = "Parroċċa"
@@ -34,23 +39,23 @@ df = pd.DataFrame(columns=[
     personInChargeEmailCol
 ])
 
+#Church type
 knisjaParrokjali = 'Knisja Parrokkjali'
 kappelliTalAdorazzjoni = 'Kappelli tal-Adorazzjoni'
 knejjesUKappelliOhra = 'Knejjes u Kappelli Oħra'
 
 churchTypes = [knisjaParrokjali, kappelliTalAdorazzjoni, knejjesUKappelliOhra]
 
+# Caching directories
 cacheParentDirectory = Path("HtmlCache")
 cacheParrocciHTMLPath = cacheParentDirectory / "parrocci.html" 
-cacheParroccaDirectory = cacheParentDirectory / "parrocca"
-cacheKnisjaDirectory = cacheParentDirectory / "knisja"
+cacheParroccaSubDirectory = cacheParentDirectory / "parrocca"
+cacheKnisjaSubDirectory = cacheParentDirectory / "knisja"
 root_site = "https://parrocci.knisja.mt/"
 
-# Create HtmlCache directories if not exists
-os.makedirs(cacheParentDirectory, exist_ok=True)
-os.makedirs(cacheParroccaDirectory, exist_ok=True)
-os.makedirs(cacheKnisjaDirectory, exist_ok=True)
-
+"""
+Functions
+"""
 def getSiteBeautifulSoup(sourceHTMLfileURL: str):
     subfolderPath = sourceHTMLfileURL[sourceHTMLfileURL.rindex(root_site)+len(root_site):len(sourceHTMLfileURL)].strip().lower()
 
@@ -77,6 +82,28 @@ def getSiteBeautifulSoup(sourceHTMLfileURL: str):
         soup = BeautifulSoup(response.text, 'html.parser')
 
     return soup
+
+def saveToExcelFile(dataFrame, directoryPath):
+    # Dataframe to Excel
+    now = dt.datetime.now()
+    dateAndTimeNow = now.strftime("%d-%m-%Y_%H-%M-%S")
+
+    fileName = "Parrocci_{0}.xlsx".format(dateAndTimeNow)
+    outputPath = directoryPath / fileName
+    # Create 'Output' directory if it does not exist
+    os.makedirs(os.path.dirname(outputPath), exist_ok=True)
+    # Write dataframe to Excel file
+    writer = pd.ExcelWriter(outputPath, engine='openpyxl')
+    dataFrame.to_excel(writer, sheet_name='Parroċċi')
+    writer.close()
+
+"""
+Main execution
+"""
+# Create HtmlCache directories if not exists
+os.makedirs(cacheParentDirectory, exist_ok=True)
+os.makedirs(cacheParroccaSubDirectory, exist_ok=True)
+os.makedirs(cacheKnisjaSubDirectory, exist_ok=True)
 
 # Extract site HTML
 parrocciPage = root_site + "parrocci/"
@@ -143,7 +170,7 @@ for localityElem in localityElems: # type: ResultSet
         }
         df.loc[len(df)] = newRow
 
-    # Add knisja parrokjali to dataframe
+    # Add Knisja Parrokjali to dataframe
     addRowToDataframe()
     
     # Kappelli tal-Adorazzjoni
@@ -162,6 +189,7 @@ for localityElem in localityElems: # type: ResultSet
             df_personInChargeNumber = ""
             df_personInChargeEmail = ""
 
+            # Add Kappella tal-Adorazzjona to dataframe
             addRowToDataframe()
 
     parroccaDoc.find(class_="wpv-view-output").decompose()
@@ -196,15 +224,5 @@ for localityElem in localityElems: # type: ResultSet
 
         addRowToDataframe()
 
-# Dataframe to Excel
-now = dt.datetime.now()
-dateAndTimeNow = now.strftime("%d-%m-%Y_%H-%M-%S")
-
-fileName = "Parrocci_{0}.xlsx".format(dateAndTimeNow)
-outputPath = Path("Output") / fileName
-# Create 'Output' directory if it does not exist
-os.makedirs(os.path.dirname(outputPath), exist_ok=True)
-# Write dataframe to Excel file
-writer = pd.ExcelWriter(outputPath, engine='openpyxl')
-df.to_excel(writer, sheet_name='Parroċċi')
-writer.close()
+# Save to output file
+saveToExcelFile(df, Path("Output"))
