@@ -1,6 +1,6 @@
 # ParrocciScaper
 
-This Python code extracts data from the website https://parrocci.knisja.mt/, which contains information about Catholic parishes in Malta. The code uses the BeautifulSoup library to parse the HTML content of the website and the pandas library to store the extracted data in a tabular format.
+This is a sample web scraper, written in Python, which extracts data from the website https://parrocci.knisja.mt/, which contains information about Catholic parishes in Malta. The code uses the BeautifulSoup library to parse the HTML content of the website and the pandas library to store the extracted data in a tabular format.
 
 The code begins by defining several constants, such as the names of the columns in the resulting pandas DataFrame, the types of churches that are considered, and the root URL of the website.
 
