@@ -14,7 +14,8 @@ Next, the code extracts information about each church in the parish, which can b
 
 Finally, the resulting pandas DataFrame is saved to an Excel file.
 
-(This README was generated using ChatGPT 😅)
+# Requirements
+Python 3 is required to run this program.
 
 # Installation
 
